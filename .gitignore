@@ -1,0 +1,41 @@
+# Compiled object files
+*.o
+*.a
+*.so
+*.dll
+
+# Build artifacts directory
+build/
+obj/
+bin/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp
+tmp2
+*.tmp
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# Result files from tests
+*.eps
+*.pbm.save
+resultats_*.txt
+
+# Editor backup files
+*~
+*.bak
