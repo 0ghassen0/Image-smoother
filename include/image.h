@@ -94,14 +94,16 @@ UINT hauteur_image(Image I);
  * @return Image loaded from file
  * 
  * File format:
- * - Line 1: P1
+ * - Line 1: P1 (ASCII pixels) or P4 (binary packed pixels)
  * - Zero, one, or more lines starting with #
  * - Zero, one, or more separators
  * - The width
  * - One or more separators
  * - The height
- * - One or more separators
- * - The image pixel data (0 for BLANC, 1 for NOIR)
+ * - The image pixel data:
+ *   - P1: ASCII, 0 for BLANC, 1 for NOIR
+ *   - P4: one whitespace byte after the height, then H rows of
+ *     (width+7)/8 packed bytes (MSB first, 1 = NOIR)
  * 
  * If there is an error in the file, the program stops and displays a message.
  */

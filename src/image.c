@@ -5,6 +5,7 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
+#include<ctype.h>
 #include"image.h"
 
 /* macro donnant l'indice du pixel de coordonnees (_x,_y) de l'image _I 
@@ -81,7 +82,7 @@ UINT hauteur_image(Image I)
    s'il y a une erreur dans le fichier le programme s'arrete en affichant
    un message 
    version acceptant les fichiers avec 
-   - ligne 1 : P1
+   - ligne 1 : P1 (pixels ASCII) ou P4 (pixels binaires)
    - zero, une ou plusieurs lignes commen�ant toutes par #
    - zero, un ou plusieurs separateurs
    - la largeur
@@ -93,15 +94,17 @@ UINT hauteur_image(Image I)
 
 /* teste si le fichier d'identificateur f debute par un en-tete
    valide pour un fichier PBM :
-   - ligne 1 : P1
+   - ligne 1 : P1 (pixels ASCII) ou P4 (pixels binaires)
    - suivie de zero, une ou plusieurs lignes commen�ant toutes par #
    La fonction se termine correctement si le fichier est correct, 
    et le pointeur de fichier se trouve � la suite de l'entete.
    Sinon, l'execution du programme est arretee avec l'affichage d'un message
-   d'erreur (appel � ERREUR_FATALE)
+   d'erreur (appel � ERREUR_FATALE).
+   Valeur de retour : 1 si le format est P1, 4 si le format est P4
     */ 
-void entete_fichier_pbm(FILE *f)
+int entete_fichier_pbm(FILE *f)
 {
+	int format;
 	char *ligne;
 	size_t n;
 	ssize_t l_ligne;
@@ -124,7 +127,19 @@ void entete_fichier_pbm(FILE *f)
 	{
 		ERREUR_FATALE("entete_fichier_pbm : ligne 1 incorrecte\n");
 	}
-	if ((ligne[0] != 'P') || (ligne[1] != '1'))
+	if (ligne[0] != 'P')
+	{
+		ERREUR_FATALE("entete_fichier_pbm : ligne 1 incorrecte\n");
+	}
+	if (ligne[1] == '1')
+	{
+		format = 1;
+	}
+	else if (ligne[1] == '4')
+	{
+		format = 4;
+	}
+	else
 	{
 		ERREUR_FATALE("entete_fichier_pbm : ligne 1 incorrecte\n");
 	}
@@ -159,8 +174,45 @@ void entete_fichier_pbm(FILE *f)
 		}
 	} while (boucle_ligne_commentaire);
 	
+	return format;
 }
   
+/* lire les pixels d'un fichier PBM binaire (P4) de dimensions L x H
+   dans l'image I.
+   Le pointeur de fichier f doit etre positionne sur le premier
+   separateur qui precede les donnees binaires.
+   Chaque ligne de l'image est codee sur (L+7)/8 octets, les bits
+   les plus significatifs en premier ; un bit a 1 correspond a un
+   pixel NOIR. En cas d'erreur le programme s'arrete avec un message. */
+void lire_pixels_pbm_binaire(FILE *f, Image I, UINT L, UINT H)
+{
+	UINT octets_par_ligne = (L + 7) / 8;
+	UINT x, y;
+	
+	/* allocation dynamique d'une ligne d'octets */
+	unsigned char *ligne = (unsigned char *)malloc(octets_par_ligne);
+	if (ligne == (unsigned char *)NULL)
+	{
+		ERREUR_FATALE("lire_pixels_pbm_binaire : allocation impossible\n");
+	}
+	
+	for (y = 1; y <= H; y++)
+	{
+		size_t lus = fread(ligne, 1, octets_par_ligne, f);
+		if (lus != octets_par_ligne)
+		{
+			free(ligne);
+			ERREUR_FATALE("lire_fichier_image : donnees binaires P4 incompletes\n");
+		}
+		for (x = 1; x <= L; x++)
+		{
+			unsigned char bit = (ligne[(x-1)/8] >> (7 - ((x-1) % 8))) & 1;
+			set_pixel_image(I, x, y, bit ? NOIR : BLANC);
+		}
+	}
+	free(ligne);
+}
+
 /* lire l'image dans le fichier dont le nom est nom_f
    s'il y a une erreur dans le fichier le programme s'arrete en affichant
    un message */
@@ -169,6 +221,7 @@ Image lire_fichier_image(char *nom_f)
 	FILE *f;
 	UINT L,H;
 	UINT x,y;
+	int format;
 	int res_fscanf;
 	Image I;
 	
@@ -180,7 +233,7 @@ Image lire_fichier_image(char *nom_f)
 	}
 	
 	/* traitement de l'en-tete et arret en cas d'erreur */
-	entete_fichier_pbm(f);
+	format = entete_fichier_pbm(f);
 	
 	/* lecture des dimensions */
 	res_fscanf = fscanf(f, "%d", &L);
@@ -197,30 +250,45 @@ Image lire_fichier_image(char *nom_f)
 	/* creation de l'image de dimensions L x H */
 	I = creer_image(L,H);
 	
-	/* lecture des pixels du fichier 
-	   seuls les caracteres '0' (BLANC) ou '1' (NOIR) 
-	   doivent etre pris en compte */
-	x = 1; y = 1;
-	while (!feof(f) && y<=H)
+	if (format == 4)
 	{
-		char c;
-		
-		/* lire un caractere en passant les caracteres differents de '0' et '1' */
-		fscanf(f, "%c", &c);
-		while (!feof(f) && !(c == '0' || c == '1'))
+		/* en format P4 les donnees binaires suivent exactement un
+		   separateur (espace, tabulation ou fin de ligne) apres la
+		   hauteur */
+		int c = fgetc(f);
+		if (c == EOF || !isspace((unsigned char)c))
 		{
+			ERREUR_FATALE("lire_fichier_image : separateur manquant avant les donnees binaires P4\n");
+		}
+		lire_pixels_pbm_binaire(f, I, L, H);
+	}
+	else
+	{
+		/* lecture des pixels du fichier 
+		   seuls les caracteres '0' (BLANC) ou '1' (NOIR) 
+		   doivent etre pris en compte */
+		x = 1; y = 1;
+		while (!feof(f) && y<=H)
+		{
+			char c;
+			
+			/* lire un caractere en passant les caracteres differents de '0' et '1' */
 			fscanf(f, "%c", &c);
-		}
-		if (!feof(f))
-		{
-			set_pixel_image(I,x,y,c=='1' ? NOIR : BLANC );
-			x++;
-			if (x>L)
+			while (!feof(f) && !(c == '0' || c == '1'))
 			{
-				x = 1; y++;
+				fscanf(f, "%c", &c);
 			}
-		}
-	}   
+			if (!feof(f))
+			{
+				set_pixel_image(I,x,y,c=='1' ? NOIR : BLANC );
+				x++;
+				if (x>L)
+				{
+					x = 1; y++;
+				}
+			}
+		}   
+	}
 	
 	/* fermeture du fichier */
 	fclose(f);
