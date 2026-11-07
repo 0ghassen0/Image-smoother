@@ -1,6 +1,34 @@
 # Image Smoothing with Bezier Curves
 
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![valgrind](https://img.shields.io/badge/valgrind-0_errors%2C_0_leaks-brightgreen)](#error-handling)
+
 A university project for smoothing black and white images using Bezier curve approximation and the Douglas-Peucker simplification algorithm.
+
+## Before / After
+
+The tool converts a raster PBM image into smooth vector contours. Below: `samples/elephant.pbm` (left) and its output rendered from the generated EPS (`-t 3 -d 3 -m fill`, right).
+
+<table>
+  <tr>
+    <th align="center">Before &mdash; raster (PBM)</th>
+    <th align="center">After &mdash; smoothed Bezier curves (EPS)</th>
+  </tr>
+  <tr>
+    <td><img src="docs/before.png" alt="Original raster image of an elephant" width="380"></td>
+    <td><img src="docs/after.png" alt="Elephant rendered from the smoothed Bezier curve output" width="380"></td>
+  </tr>
+  <tr>
+    <th align="center">Before &mdash; 3&times; zoom</th>
+    <th align="center">After &mdash; 3&times; zoom</th>
+  </tr>
+  <tr>
+    <td><img src="docs/zoom_before.png" alt="Zoomed raster edge showing pixel stair-casing" width="380"></td>
+    <td><img src="docs/zoom_after.png" alt="Zoomed Bezier edge showing a smooth curve" width="380"></td>
+  </tr>
+</table>
+
+The full-size images are 800&times;700; the zoom crops show how the pixel stair-casing of the input becomes a smooth curve in the output.
 
 ## Project Structure
 
@@ -31,7 +59,7 @@ A university project for smoothing black and white images using Bezier curve app
 
 ## Features
 
-- **PBM Image Handling**: Read and write black and white images in PBM (P1) format
+- **PBM Image Handling**: Read black and white images in PBM ASCII (P1) and binary (P4) formats
 - **Contour Extraction**: Extract contours from black and white images using a tracing algorithm
 - **Bezier Curve Approximation**: Approximate contours using quadratic (Bezier2) and cubic (Bezier3) Bezier curves
 - **Douglas-Peucker Simplification**: Simplify contours using the Douglas-Peucker algorithm
@@ -167,11 +195,57 @@ Note: The program will prompt for a threshold value.
   - Comments: Lines starting with `#`
   - Dimensions: Width and height
   - Pixel data: `0` for white, `1` for black
+- **PBM (P4 format)**: Black and white images with binary packed representation
+  - First line: `P4`
+  - Same header rules as P1 (`#` comments, width, height)
+  - Exactly one whitespace byte after the height, then
+  - Pixel data: each row packed into `(width + 7) / 8` bytes, most
+    significant bit first; a set bit is a black pixel. Bits beyond `width`
+    in the last byte of each row are padding and ignored.
+  - Produced by most standard tools (ImageMagick, netpbm, GIMP binary export)
+
+Both formats can be used interchangeably anywhere an input image is accepted.
 
 ### Output Files
 - **EPS**: Encapsulated PostScript files for vector graphics
   - Can be viewed with Ghostscript, Adobe Illustrator, etc.
   - Supports both `stroke` and `fill` modes
+
+## Error Handling
+
+The program follows a **fail fast** policy: on any unrecoverable error it prints a
+diagnostic message to standard error and exits with a non-zero status. No partial
+output file is written, since all errors below occur before the output stage.
+
+### Malformed input files
+
+| Condition | Message (stderr) |
+|---|---|
+| File cannot be opened | `Error: Cannot open input file '<name>'` |
+| First line is not `P1` or `P4` | `entete_fichier_pbm : ligne 1 incorrecte` |
+| File ends inside the header/comment section | `entete_fichier_pbm : fin fichier inattendue` |
+| Missing or non-numeric width/height | `lire_fichier_image : dimension L/H incorrecte` |
+| P4: no whitespace byte between the height and the raster | `lire_fichier_image : separateur manquant avant les donnees binaires P4` |
+| P4: binary raster ends before `H x ceil(L/8)` bytes | `lire_fichier_image : donnees binaires P4 incompletes` |
+
+Known lenient behavior: in P1 files any character other than `0` or `1` is skipped,
+and if the pixel data ends early the remaining pixels are silently left white.
+
+### Memory exhaustion
+
+Every heap allocation in the program is checked, including image buffers, contour
+lists, and the Bezier/contour arrays. If an allocation fails, the program prints an
+`allocation impossible`-style message to stderr and exits with a non-zero status
+(`exit(1)` in the image module, `exit(-1)` in the geometry/Bezier modules). No
+manual cleanup is attempted on abort; the operating system reclaims the process
+memory at exit.
+
+### Valgrind verification
+
+The `valgrind : 0 errors, 0 leaks` badge above is backed by `valgrind --leak-check=full`
+runs of `image_smoother` across P1 and P4 inputs, both Bezier degrees, `stroke`/`fill`
+modes, and EPS/SVG output — all reporting `0 bytes in use at exit` and
+`ERROR SUMMARY: 0 errors from 0 contexts`.
 
 ## Implementation Details
 
@@ -188,4 +262,8 @@ Note: The program will prompt for a threshold value.
 ### Douglas-Peucker Simplification
 - Recursively simplifies contours by removing points that are within a threshold distance from the line segment
 - Can be applied to both raw contours and Bezier curve approximations
+
+## License
+
+This project is released under the [MIT License](LICENSE).
 
