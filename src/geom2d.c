@@ -265,7 +265,7 @@ void affiche_nb_segments_tab_contours(Tableau_Contour T){
 Tableau_Contour creer_tableau_contour_vide() {
 	Tableau_Contour T;
 	T.taille=0;
-	//T.tab = malloc(sizeof(Tableau_Contour));
+	T.tab=NULL;
 	return T;
 
 }
@@ -285,7 +285,7 @@ Tableau_Contour ajouter_element_tab_contour(Tableau_Contour T, Contour C) {
 
     L.tab[T.taille] = C;
     
-	//free(T.tab);
+    if (T.taille > 0) free(T.tab); /* liberer l'ancien tableau */
     return L;
 }
 

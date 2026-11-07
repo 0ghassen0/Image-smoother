@@ -356,7 +356,7 @@ Tableau_seq_bezier2 ajouter_elem_tab_seq_bezier2(Tableau_seq_bezier2 T, seq_bezi
 
     L.tab[T.taille] = S;
     
-    //free(T.tab);
+    if (T.taille > 0) free(T.tab); /* liberer l'ancien tableau */
     return L;
 }
 
@@ -375,6 +375,7 @@ Tableau_seq_bezier3 ajouter_elem_tab_seq_bezier3(Tableau_seq_bezier3 T, seq_bezi
 
     L.tab[T.taille] = S;
     
+    if (T.taille > 0) free(T.tab); /* liberer l'ancien tableau */
     return L;
 }
 
@@ -405,6 +406,7 @@ void ecrire_tableau_seq_bezer3(Tableau_seq_bezier3 T) {
 Tableau_seq_bezier2 creer_tab_seq_bezier2_vide() {
     Tableau_seq_bezier2 T;
     T.taille =0;
+    T.tab = NULL;
     return T;
 }
 
@@ -412,6 +414,7 @@ Tableau_seq_bezier2 creer_tab_seq_bezier2_vide() {
 Tableau_seq_bezier3 creer_tab_seq_bezier3_vide() {
     Tableau_seq_bezier3 T;
     T.taille =0;
+    T.tab = NULL;
     return T;
 }
 
